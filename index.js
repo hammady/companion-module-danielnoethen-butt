@@ -63,6 +63,7 @@ class instance extends instance_skel {
 			this.status(this.STATE_ERROR, 'No binary path set for BUTT')
 		}
 
+		this.initVariables()
 		this.initFeedbacks()
 		this.startStatusTimer()
 	}
@@ -228,11 +229,13 @@ class instance extends instance_skel {
 	}
 
 	startStatusTimer() {
+		this.ticks = 0
 		this.statusTimer = setInterval(() => {
 			this.invoke_binary(['-S'], (output) => {
 				// success
 				this.processStatus(output)
 				this.checkFeedbacks()
+				this.ticks++
 			}, (output) => {
 				// failure
 				this.status(this.STATE_ERROR, "Error while getting status, make sure BUTT server is running on the configured IP/port or restart it manually. Output: " + output)
@@ -256,12 +259,71 @@ class instance extends instance_skel {
 				}
 			}
 		})
+		// TODO remove below once read from binary output
+		if (status.connected) { // don't add if status is empty due to error
+			status['stream_song_name'] = 'Masjid Live - Isha Athan and Prayer'
+			status['recording_file_name'] = 'recording_2022_02_28.mp3'
+			status['stream_duration'] = '0'
+			status['recording_duration'] = '10'
+		}
+		this.setVariables(status)
 		this.serverStatus = status
 		this.debug('processStatus', status)
 	}
 
 	stopStatusTimer() {
 		clearInterval(this.statusTimer)
+	}
+
+	initVariables() {
+		this.setVariableDefinitions([
+			{
+				label: 'Active song name being streamed',
+				name: 'stream_song_name'
+			},
+			{
+				label: 'Active song name being streamed (short)',
+				name: 'stream_song_name_short'
+			},
+			{
+				label: 'Active file name being recorded to',
+				name: 'recording_file_name'
+			},
+			{
+				label: 'Active file name being recorded to (short)',
+				name: 'recording_file_name_short'
+			},
+			{
+				label: 'Duration of the active stream',
+				name: 'stream_duration'
+			},
+			{
+				label: 'Duration of the active recording',
+				name: 'recording_duration'
+			}
+		])
+	}
+
+	extractShortString(str, maxLength) {
+		if (!str) {
+			return ''
+		}
+		if (str.length > maxLength) {
+			let start = this.ticks % str.length
+			return str.substring(start, start + maxLength)
+		}
+		return str
+	}
+
+	setVariables(status) {
+		this.setVariable('stream_song_name', status['stream_song_name'])
+		this.setVariable('stream_song_name_short', this.extractShortString(status['stream_song_name'], 9))
+		this.setVariable('recording_file_name', status['recording_file_name'])
+		this.setVariable('recording_file_name_short', this.extractShortString(status['recording_file_name'], 9))
+		// TODO convert below durations to hours:minutes:seconds 
+		this.setVariable('stream_duration', status['stream_duration'])
+		this.setVariable('recording_duration', status['recording_duration'])
+		// TODO add uptime variable to monitor butt uptime (simply number of ticks, or return from butt status`)
 	}
 
 	initFeedbacks() {
